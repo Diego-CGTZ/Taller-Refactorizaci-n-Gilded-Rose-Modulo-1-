@@ -23,7 +23,7 @@ from abc import ABC, abstractmethod
 AGED_BRIE = "Aged Brie"
 SULFURAS = "Sulfuras, Hand of Ragnaros"
 BACKSTAGE_PASS = "Backstage passes to a TAFKAL80ETC concert"
-CONJURED = "Conjured Mana Cake"
+CONJURED       = "Conjured Mana Cake"
 
 _MIN_QUALITY = 0
 _MAX_QUALITY = 50
