@@ -6,58 +6,70 @@ BACKSTAGE_PASS = "Backstage passes to a TAFKAL80ETC concert"
 
 
 # ===========================================================================
-# Template Method — clase base
+# Jerarquía Strategy — una clase por comportamiento
 # ===========================================================================
 
 class ItemUpdater:
-    """Comportamiento por defecto: ítem normal."""
+    """Clase base: define la interfaz del updater."""
 
-    def update(self, item):
-        self._update_sell_in(item)
-        self._update_quality(item)
+    def __init__(self, item):
+        self.item = item
 
-    def _update_sell_in(self, item):
-        item.sell_in -= 1
-
-    def _update_quality(self, item):
-        if item.quality > 0:
-            item.quality -= 1
-        if item.sell_in < 0 and item.quality > 0:   # doble degradación post-vencimiento
-            item.quality -= 1
+    def update(self):
+        raise NotImplementedError
 
 
-# ===========================================================================
-# Subclases — sobreescriben solo lo necesario
-# ===========================================================================
-
-class SulfurasUpdater(ItemUpdater):
-    def update(self, item):
-        pass  # ítem legendario: nunca cambia
+class NormalItemUpdater(ItemUpdater):
+    def update(self):
+        self.item.sell_in -= 1
+        degradation = 2 if self.item.sell_in < 0 else 1
+        self.item.quality = max(0, self.item.quality - degradation)
 
 
 class AgedBrieUpdater(ItemUpdater):
-    def _update_quality(self, item):
-        if item.quality < 50:
-            item.quality += 1
-        if item.sell_in < 0 and item.quality < 50:  # doble mejora post-vencimiento
-            item.quality += 1
+    def update(self):
+        self.item.sell_in -= 1
+        improvement = 2 if self.item.sell_in < 0 else 1
+        self.item.quality = min(50, self.item.quality + improvement)
+
+
+class SulfurasUpdater(ItemUpdater):
+    def update(self):
+        pass  # ítem legendario: nunca cambia
 
 
 class BackstagePassUpdater(ItemUpdater):
-    def _update_quality(self, item):
-        if item.sell_in < 0:                         # concierto pasó → calidad = 0
-            item.quality = 0
-            return
-        if item.quality < 50:
-            item.quality += 1                        # +1 base
-        if item.sell_in < 10 and item.quality < 50:  # bono: ≤10 días restantes
-            item.quality += 1
-        if item.sell_in < 5 and item.quality < 50:   # bono: ≤5 días restantes
-            item.quality += 1
+    def update(self):
+        self.item.sell_in -= 1
+        if self.item.sell_in < 0:
+            self.item.quality = 0
+        elif self.item.sell_in < 5:
+            self.item.quality = min(50, self.item.quality + 3)
+        elif self.item.sell_in < 10:
+            self.item.quality = min(50, self.item.quality + 2)
+        else:
+            self.item.quality = min(50, self.item.quality + 1)
 
 
 # ===========================================================================
-# GildedRose — delega en el updater correcto
+# Factory — selecciona el updater correcto según el nombre del ítem
+# ===========================================================================
+
+class UpdaterFactory:
+    _registry = {
+        AGED_BRIE:      AgedBrieUpdater,
+        SULFURAS:       SulfurasUpdater,
+        BACKSTAGE_PASS: BackstagePassUpdater,
+    }
+
+    @classmethod
+    def for_item(cls, item):
+        updater_class = cls._registry.get(item.name, NormalItemUpdater)
+        return updater_class(item)
+
+
+# ===========================================================================
+# GildedRose — simplificado al máximo
 # ===========================================================================
 
 class GildedRose(object):
@@ -67,16 +79,7 @@ class GildedRose(object):
 
     def update_quality(self):
         for item in self.items:
-            self._get_updater(item).update(item)
-
-    def _get_updater(self, item):
-        if item.name == SULFURAS:
-            return SulfurasUpdater()
-        if item.name == AGED_BRIE:
-            return AgedBrieUpdater()
-        if item.name == BACKSTAGE_PASS:
-            return BackstagePassUpdater()
-        return ItemUpdater()
+            UpdaterFactory.for_item(item).update()
 
 
 # ===========================================================================
