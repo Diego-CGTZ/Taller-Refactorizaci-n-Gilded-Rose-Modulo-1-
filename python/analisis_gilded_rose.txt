@@ -1,0 +1,308 @@
+================================================================================
+FICHA DE ANÁLISIS Y DOCUMENTACIÓN
+Kata: Gilded Rose — Refactorización Modulo 1
+================================================================================
+
+================================================================================
+CRITERIO 1 — ANÁLISIS Y COMPRENSIÓN DEL CÓDIGO LEGACY
+================================================================================
+
+--- CODE SMELLS IDENTIFICADOS ---
+
+1. Método largo (Long Method)
+   El método update_quality() original tenía más de 30 líneas y mezclaba
+   las reglas de negocio de cinco tipos distintos de ítems en un único
+   bloque. Es imposible leer una regla sin tener en mente todas las demás.
+
+2. Condicionales anidados (Deeply Nested Conditionals)
+   Había hasta cinco niveles de anidamiento (if dentro de if dentro de if).
+   Esto eleva la complejidad ciclomática y hace que razonar sobre un caso
+   concreto requiera trazar mentalmente todas las ramas anteriores.
+
+3. Strings mágicos (Magic Strings)
+   Los nombres de los ítems ("Aged Brie", "Sulfuras, Hand of Ragnaros",
+   "Backstage passes to a TAFKAL80ETC concert") aparecían literalmente
+   repetidos hasta ocho veces en el código. Un error tipográfico en
+   cualquiera de ellos cambiaría el comportamiento silenciosamente.
+
+4. Clase con múltiples responsabilidades (God Class / SRP violation)
+   GildedRose conocía y aplicaba las reglas de todos los tipos de ítems.
+   Cualquier cambio en la regla de un ítem obligaba a abrir y modificar
+   la misma clase, con riesgo de romper el comportamiento de los demás.
+
+5. Código críptico (Poor Naming / Lack of Intent Revelation)
+   Expresiones como "item.quality = item.quality - item.quality" (que
+   equivale a poner quality a 0) ocultan la intención real del código.
+
+--- REGLAS DE NEGOCIO — TODOS LOS TIPOS DE ÍTEM ---
+
+Ítem Normal:
+  - La calidad decrece 1 punto por día.
+  - Una vez pasada la fecha de venta (sell_in < 0), degrada 2 puntos/día.
+  - La calidad nunca baja de 0.
+  Casos límite: quality = 0 (queda en 0), sell_in = 0 (ese día ya degrada doble).
+
+Aged Brie:
+  - La calidad aumenta 1 punto por día.
+  - Una vez pasada la fecha de venta, mejora 2 puntos/día.
+  - La calidad nunca supera 50.
+  Casos límite: quality = 50 (se queda en 50), quality = 49 con sell_in = 0
+  (solo puede llegar a 50, no a 51).
+
+Sulfuras, Hand of Ragnaros:
+  - Es un ítem legendario: ni la calidad ni el sell_in cambian jamás.
+  Casos límite: ninguno — es completamente inmutable.
+
+Backstage passes to a TAFKAL80ETC concert:
+  - Con más de 10 días: +1 de calidad por día.
+  - Con 10 días o menos: +2 de calidad por día.
+  - Con 5 días o menos: +3 de calidad por día.
+  - Tras el concierto (sell_in pasa a negativo): calidad cae a 0.
+  - La calidad nunca supera 50.
+  Casos límite: quality = 50 (no puede subir más), sell_in = 0 (ese día
+  la calidad se convierte en 0 después de aplicar los bonos).
+
+Conjured Mana Cake:
+  - Degrada el doble de rápido que un ítem normal.
+  - Antes del vencimiento: -2 por día.
+  - Después del vencimiento: -4 por día.
+  - La calidad nunca baja de 0.
+  Casos límite: quality = 1 con sell_in > 0 (cae a 0, no a -1).
+
+--- DIFERENCIAS ENTRE REQUISITOS Y CÓDIGO REAL ---
+
+  Los requisitos escritos dicen que Conjured degrada "el doble de rápido".
+  El código legacy NO implementa esta funcionalidad — trata a Conjured
+  como un ítem normal, degradándolo solo 1 punto/día. Esta es una
+  diferencia explícita entre especificación y realidad que los tests de
+  caracterización capturan (documentan lo que hace, no lo que debería hacer).
+
+  El requisito del Backstage pass usa los umbrales "10 días o menos" y
+  "5 días o menos". El código legacy comprueba sell_in < 11 y sell_in < 6
+  ANTES de decrementar sell_in, lo que es equivalente a < 10 y < 5
+  DESPUÉS del decremento. Ambas formulaciones producen el mismo resultado,
+  pero la lectura directa del código puede inducir a confusión.
+
+
+================================================================================
+CRITERIO 2 — TESTS DE CARACTERIZACIÓN (SAFETY NET)
+================================================================================
+
+Commit de seguridad: "test: add characterization tests as safety net"
+Realizado ANTES de cualquier cambio en producción.
+
+Suite total: 19 tests (18 unitarios + 1 approval test).
+
+--- TESTS UNITARIOS (18) ---
+
+Normal Item (4 tests):
+  - test_normal_item_quality_decreases_by_1_before_sell_date
+    Verifica: sell_in=10, quality=20 → quality=19, sell_in=9
+  - test_normal_item_quality_decreases_by_2_on_sell_date
+    Verifica: sell_in=0, quality=20 → quality=18 (doble degradación)
+  - test_normal_item_quality_decreases_by_2_after_sell_date
+    Verifica: sell_in=-1, quality=10 → quality=8
+  - test_normal_item_quality_never_goes_below_zero
+    Verifica: sell_in=5, quality=0 → quality=0 (floor)
+
+Aged Brie (3 tests):
+  - test_aged_brie_quality_increases_before_sell_date
+    Verifica: sell_in=5, quality=10 → quality=11, sell_in=4
+  - test_aged_brie_quality_increases_twice_after_sell_date
+    Verifica: sell_in=0, quality=10 → quality=12 (doble mejora)
+  - test_aged_brie_quality_never_exceeds_50
+    Verifica: sell_in=5, quality=50 → quality=50 (cap)
+
+Sulfuras (2 tests):
+  - test_sulfuras_quality_never_changes
+    Verifica: quality=80 → quality=80 (inmutable)
+  - test_sulfuras_sell_in_never_changes
+    Verifica: sell_in=5 → sell_in=5 (inmutable)
+
+Backstage Pass (4 tests):
+  - test_backstage_pass_quality_increases_by_1_when_more_than_10_days
+    Verifica: sell_in=15, quality=20 → quality=21
+  - test_backstage_pass_quality_increases_by_2_when_10_days_or_fewer
+    Verifica: sell_in=10, quality=20 → quality=22
+  - test_backstage_pass_quality_increases_by_3_when_5_days_or_fewer
+    Verifica: sell_in=5, quality=20 → quality=23
+  - test_backstage_pass_quality_drops_to_zero_after_concert
+    Verifica: sell_in=0, quality=20 → quality=0
+
+sell_in general (1 test):
+  - test_sell_in_decreases_by_1_each_day
+    Verifica que cualquier ítem no-Sulfuras decrementa sell_in en 1.
+
+Conjured — TDD (4 tests, escritos ANTES de implementar):
+  - test_conjured_item_quality_decreases_by_2_before_sell_date
+    Verifica: sell_in=5, quality=20 → quality=18
+  - test_conjured_item_quality_decreases_by_4_after_sell_date
+    Verifica: sell_in=0, quality=20 → quality=16
+  - test_conjured_item_quality_never_goes_below_zero
+    Verifica: sell_in=5, quality=1 → quality=0 (floor)
+  - test_conjured_item_sell_in_decreases_by_1
+    Verifica: sell_in=5 → sell_in=4
+
+--- APPROVAL TEST (1) ---
+
+  test_gilded_rose_approvals:
+    Ejecuta el programa completo durante 30 días y compara el output
+    completo contra un archivo "aprobado" (golden file). Cualquier
+    cambio accidental en el comportamiento de cualquier ítem romperá
+    este test. Actúa como red de seguridad de integración.
+
+
+================================================================================
+CRITERIO 3 — PROCESO DE REFACTORIZACIÓN (MICRO-PASOS)
+================================================================================
+
+Todos los pasos se realizaron con los tests en verde en todo momento.
+Ningún paso mezcló refactorización con adición de funcionalidad.
+
+PASO 0 — Safety net
+  Commit: "test: add characterization tests as safety net"
+  Acción: Escribir 14 tests de caracterización antes de tocar producción.
+
+PASO B1 — Extraer constantes para strings mágicos
+  Commit: "refactor: extract string constants for item names (B1)"
+  Técnica: Replace Magic Literal with Symbolic Constant.
+  Cambio: 3 constantes definidas (AGED_BRIE, SULFURAS, BACKSTAGE_PASS).
+          Las 8 apariciones del string literal reemplazadas por constante.
+  Tests: 15/15 verdes.
+
+PASO B2 — Extraer métodos por tipo de ítem
+  Commit: "refactor: extract private methods per item type (B2)"
+  Técnica: Extract Method.
+  Cambio: update_quality() delegó en _update_normal_item(),
+          _update_aged_brie(), _update_backstage_pass().
+          _is_sulfuras() como cláusula de guarda.
+  Tests: 15/15 verdes.
+
+PASO B3 — Simplificar condicionales anidados
+  Commit: "refactor: simplify nested conditionals with guard clauses (B3)"
+  Técnica: Consolidate Conditional Expression / Guard Clause.
+  Cambio: if x: if y: → if x and y:
+          = x + 1 / = x - 1 → += / -=
+          quality - quality → 0
+  Tests: 15/15 verdes.
+
+PASO I1 — Patrón Template Method
+  Commit: "refactor: extract ItemUpdater with Template Method pattern (I1)"
+  Técnica: Extract Class + Template Method.
+  Cambio: Clase base ItemUpdater con update() llamando a
+          _update_sell_in() y _update_quality(). Subclases para
+          Aged Brie, Sulfuras y Backstage Pass.
+  Tests: 15/15 verdes.
+
+PASO A1 — Patrón Strategy + Factory
+  Commit: "refactor: replace conditionals with Strategy pattern (A1)"
+  Técnica: Replace Conditional with Polymorphism.
+  Cambio: Cada tipo de ítem tiene su propia clase que implementa
+          update() completo. UpdaterFactory con registry dict.
+          GildedRose.update_quality() queda en 2 líneas sin ningún if.
+  Tests: 15/15 verdes.
+
+PASO Conjured — TDD
+  Commits: "feat: add failing tests for Conjured item (TDD red)"
+           "feat: implement ConjuredItemUpdater (TDD green)"
+  Técnica: Test-Driven Development (Red → Green).
+  Cambio: 4 tests escritos primero (fallaron). Luego ConjuredItemUpdater
+          añadido y registrado en factory. Ninguna clase existente modificada.
+  Tests: 19/19 verdes.
+
+
+================================================================================
+CRITERIO 4 — CALIDAD DEL CÓDIGO FINAL (PRINCIPIOS SOLID)
+================================================================================
+
+S — Single Responsibility Principle:
+  Cada clase tiene exactamente una razón de cambio.
+  NormalItemUpdater cambia solo si cambia la regla del ítem normal.
+  AgedBrieUpdater cambia solo si cambia la regla del Aged Brie.
+  BackstagePassUpdater cambia solo si cambian los umbrales de días.
+  SulfurasUpdater cambia solo si Sulfuras dejara de ser inmutable.
+  ConjuredItemUpdater cambia solo si cambia la tasa de degradación Conjured.
+  UpdaterFactory cambia solo si se añade o elimina un tipo de ítem.
+  GildedRose cambia solo si cambia la forma de iterar la colección.
+
+O — Open/Closed Principle:
+  Añadir un nuevo tipo de ítem NO requiere modificar ninguna clase existente.
+  Solo se necesita: crear una nueva subclase de ItemUpdater e
+  inscribirla en UpdaterFactory._registry con una línea.
+  El Conjured demuestra esto: se añadió sin tocar NormalItemUpdater,
+  AgedBrieUpdater ni ninguna otra clase preexistente.
+
+L — Liskov Substitution Principle:
+  Cualquier subclase de ItemUpdater puede usarse donde se espera la base.
+  Todas respetan: método update() presente, quality queda en [0, 50],
+  sell_in decrece en 1 (o permanece igual en Sulfuras).
+  GildedRose llama updater.update() sin saber qué tipo concreto tiene.
+
+I — Interface Segregation Principle:
+  La interfaz de ItemUpdater es mínima: solo el método update().
+  Ninguna clase se ve obligada a implementar métodos que no necesita.
+
+D — Dependency Inversion Principle:
+  GildedRose depende exclusivamente de la abstracción ItemUpdater,
+  nunca de las clases concretas. No hay ninguna mención a
+  NormalItemUpdater, AgedBrieUpdater, etc. dentro de GildedRose.
+  UpdaterFactory centraliza el conocimiento de las concretas en
+  un único lugar, evitando que ese acoplamiento se disemine.
+
+Señal de éxito verificada:
+  GildedRose.update_quality() no contiene NINGÚN if relacionado
+  con el nombre de un ítem. La lógica condicional ha migrado
+  completamente al polimorfismo.
+
+  Código final de update_quality():
+    def update_quality(self):
+        for item in self.items:
+            UpdaterFactory.for_item(item).update()
+
+
+================================================================================
+CRITERIO 5 — IMPLEMENTACIÓN DE "CONJURED" (TDD)
+================================================================================
+
+Proceso TDD seguido:
+
+  ROJO:   Se escribieron 4 tests para "Conjured Mana Cake" antes de
+          existir ninguna implementación. Los tests fallaron confirmando
+          que el código legacy no soportaba el comportamiento.
+
+  VERDE:  Se creó ConjuredItemUpdater heredando de ItemUpdater:
+            class ConjuredItemUpdater(ItemUpdater):
+                def update(self):
+                    self.item.sell_in -= 1
+                    degradation = 4 if self.item.sell_in < 0 else 2
+                    self.item.quality = max(0, self.item.quality - degradation)
+          Se registró en UpdaterFactory._registry con una sola línea.
+          Los 4 tests pasaron. Los 15 tests previos continuaron en verde.
+
+Beneficio demostrado de la refactorización previa:
+  En el código legacy, añadir Conjured habría requerido abrir update_quality()
+  y añadir otro if/elif en medio del laberinto de condicionales anidados,
+  con riesgo de romper el comportamiento de los otros ítems.
+  Con el diseño final, añadir Conjured fue trivial: una clase nueva y
+  una línea en el registry. Cero clases existentes modificadas.
+  Esto es el principio Open/Closed en acción.
+
+Tests de Conjured:
+  - Degrada -2 antes del vencimiento (sell_in=5, quality=20 → 18)
+  - Degrada -4 después del vencimiento (sell_in=0, quality=20 → 16)
+  - Nunca baja de 0 (sell_in=5, quality=1 → 0)
+  - sell_in decrece 1 por día (sell_in=5 → 4)
+
+
+================================================================================
+RESULTADO FINAL
+================================================================================
+
+Tests totales: 19 (18 unitarios + 1 approval)
+Todos en verde: SI
+Commits atómicos con tests en verde: SI
+Conjured implementado por TDD: SI
+update_quality() sin condicionales de nombre: SI
+Principios SOLID cumplidos: S, O, L, I, D
+
+================================================================================

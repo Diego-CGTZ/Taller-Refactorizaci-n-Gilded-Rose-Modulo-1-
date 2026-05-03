@@ -113,5 +113,35 @@ class GildedRoseTest(unittest.TestCase):
         self.assertEqual(9, items[0].sell_in)
 
 
+    # ------------------------------------------------------------------
+    # Conjured items — TDD: tests escritos ANTES de la implementación
+    # Un ítem Conjured degrada el doble de rápido que un ítem normal.
+    # ------------------------------------------------------------------
+
+    def test_conjured_item_quality_decreases_by_2_before_sell_date(self):
+        """Conjured degrada -2 por día antes del vencimiento."""
+        items = [Item("Conjured Mana Cake", sell_in=5, quality=20)]
+        GildedRose(items).update_quality()
+        self.assertEqual(18, items[0].quality)
+
+    def test_conjured_item_quality_decreases_by_4_after_sell_date(self):
+        """Conjured degrada -4 por día después del vencimiento (doble de normal)."""
+        items = [Item("Conjured Mana Cake", sell_in=0, quality=20)]
+        GildedRose(items).update_quality()
+        self.assertEqual(16, items[0].quality)
+
+    def test_conjured_item_quality_never_goes_below_zero(self):
+        """La calidad del Conjured no puede bajar de 0."""
+        items = [Item("Conjured Mana Cake", sell_in=5, quality=1)]
+        GildedRose(items).update_quality()
+        self.assertEqual(0, items[0].quality)
+
+    def test_conjured_item_sell_in_decreases_by_1(self):
+        """El sell_in del Conjured decrece 1 por día como cualquier ítem normal."""
+        items = [Item("Conjured Mana Cake", sell_in=5, quality=10)]
+        GildedRose(items).update_quality()
+        self.assertEqual(4, items[0].sell_in)
+
+
 if __name__ == '__main__':
     unittest.main()
