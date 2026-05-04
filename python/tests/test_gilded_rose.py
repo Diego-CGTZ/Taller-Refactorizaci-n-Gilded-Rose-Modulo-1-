@@ -143,5 +143,57 @@ class GildedRoseTest(unittest.TestCase):
         self.assertEqual(4, items[0].sell_in)
 
 
+# ------------------------------------------------------------------
+# Reto adicional Senior — Inyección de dependencias
+# Demuestra que GildedRose es testeable con un factory falso
+# (test double) sin tocar ningún código de producción.
+# ------------------------------------------------------------------
+
+class FakeUpdater:
+    """Updater espía: registra que fue llamado sin ejecutar lógica real."""
+    def __init__(self, item):
+        self.item = item
+        self.called = False
+
+    def update(self):
+        self.called = True
+
+
+class FakeFactory:
+    """Factory falso que devuelve FakeUpdaters y recuerda los ítems procesados."""
+    def __init__(self):
+        self.updaters = []
+
+    def for_item(self, item):
+        updater = FakeUpdater(item)
+        self.updaters.append(updater)
+        return updater
+
+
+class GildedRoseDITest(unittest.TestCase):
+
+    def test_gilded_rose_delegates_to_injected_factory(self):
+        """GildedRose llama al factory inyectado, no al UpdaterFactory por defecto."""
+        items = [Item("Foo", sell_in=5, quality=10),
+                 Item("Bar", sell_in=3, quality=20)]
+        fake_factory = FakeFactory()
+
+        GildedRose(items, factory=fake_factory).update_quality()
+
+        # El factory falso recibió exactamente los 2 ítems
+        self.assertEqual(2, len(fake_factory.updaters))
+        # Cada updater fue invocado exactamente una vez
+        self.assertTrue(all(u.called for u in fake_factory.updaters))
+        # Los ítems no fueron alterados (el fake no cambia nada)
+        self.assertEqual(10, items[0].quality)
+        self.assertEqual(20, items[1].quality)
+
+    def test_gilded_rose_uses_default_factory_when_none_injected(self):
+        """Sin factory inyectado, GildedRose usa UpdaterFactory normalmente."""
+        items = [Item("Normal Item", sell_in=5, quality=10)]
+        GildedRose(items).update_quality()   # factory=None → UpdaterFactory por defecto
+        self.assertEqual(9, items[0].quality)
+
+
 if __name__ == '__main__':
     unittest.main()

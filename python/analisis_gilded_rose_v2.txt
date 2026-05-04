@@ -1,0 +1,370 @@
+================================================================================
+FICHA DE ANÁLISIS Y DOCUMENTACIÓN — VERSIÓN 2.0
+Kata: Gilded Rose — Refactorización Módulo 3 · Retrospectiva y Cierre
+================================================================================
+
+
+================================================================================
+PASO 3.3 — RETROSPECTIVA DE LA ACTIVIDAD
+================================================================================
+
+------------------------------------------------------------------------
+PREGUNTAS PARA EL GRUPO
+------------------------------------------------------------------------
+
+¿Qué parte del proceso fue la más incómoda? ¿Por qué?
+-------------------------------------------------------
+  La parte más incómoda fue leer y entender el código legacy original antes
+  de escribir cualquier test. El método update_quality() mezclaba cinco tipos
+  de ítems en un único bloque de más de 30 líneas con hasta cinco niveles de
+  anidamiento. Razonar sobre un caso concreto exigía trazar mentalmente todas
+  las ramas anteriores sin perder el hilo, algo que genera carga cognitiva
+  alta y sensación de inseguridad.
+
+  La segunda incomodidad fue escribir tests de caracterización sin saber
+  "si el código está bien". El instinto natural es corregir lo que parece
+  incorrecto, pero el método exige documentar el comportamiento real antes
+  de juzgarlo. Ese cambio de mentalidad — observar antes de opinar — resulta
+  contracultural para quienes están acostumbrados a escribir tests de TDD.
+
+¿Hubo algún momento en que el test falló inesperadamente? ¿Qué revelaba ese fallo?
+------------------------------------------------------------------------------------
+  Sí. El test de "Conjured Mana Cake" que verificaba degradación -2 antes
+  del vencimiento falló mostrando:
+
+    AssertionError: 18 != 19
+
+  Este fallo reveló que el código legacy trataba a Conjured exactamente como
+  un ítem normal (degradación -1). No era un error de lógica en el test:
+  era evidencia de una funcionalidad nunca implementada.
+
+  El test de "quality nunca baja de 0" pasó inesperadamente (con quality=1
+  el resultado fue 0, no -1), porque el NormalItemUpdater ya aplica max(0, ...)
+  por defecto. Ese "pase accidental" recordó que un test verde no siempre
+  significa que el comportamiento sea el correcto: hay que inspeccionar
+  el motivo del resultado.
+
+  En el test de Backstage Pass con sell_in=10, el resultado fue +2 y no +1.
+  El fallo reveló la sutileza de los umbrales: el código decrementa sell_in
+  primero y luego evalúa, por lo que sell_in=10 entra en la rama de ≤ 9
+  (que suma 2). Leerlo directamente sin ejecutarlo habría producido
+  una conclusión errónea.
+
+¿Cuál fue la diferencia entre escribir tests de caracterización y tests de TDD?
+---------------------------------------------------------------------------------
+  Tests de caracterización:
+  - Se escriben DESPUÉS de que el código existe.
+  - Su objetivo es documentar qué hace el código, no qué debería hacer.
+  - Pueden (y deben) capturar comportamientos incorrectos o indeseados.
+  - Actúan como red de seguridad: si la refactorización rompe algo, avisan.
+  - No guían el diseño; sólo lo preservan.
+  - Sensación al escribirlos: detective que investiga, no inventor que diseña.
+
+  Tests de TDD:
+  - Se escriben ANTES de que exista el código de producción.
+  - Su objetivo es especificar el comportamiento deseado.
+  - Empiezan fallando (rojo) por definición: no hay implementación todavía.
+  - Guían el diseño: la forma del test influye en la forma del código.
+  - Producen el ciclo Rojo → Verde → Refactor.
+  - Sensación al escribirlos: arquitecto que diseña antes de construir.
+
+  Diferencia clave: los tests de caracterización dicen "así funciona"; los
+  tests de TDD dicen "así debería funcionar". El kata usa ambos: primero
+  caracterización (Módulos 1 y 2) y luego TDD (Módulo 3, Conjured).
+
+
+------------------------------------------------------------------------
+REFLEXIÓN INDIVIDUAL (5 minutos de escritura)
+------------------------------------------------------------------------
+
+Describe en 3 líneas la estrategia que seguiste:
+  Primero construí una red de seguridad con tests de caracterización antes
+  de tocar una sola línea de producción. Luego refactoricé en micro-pasos
+  atómicos, confirmando verde después de cada uno. Finalmente añadí la
+  funcionalidad nueva (Conjured) únicamente por TDD, sin modificar
+  ninguna clase existente.
+
+¿Qué harías diferente si repitieras el kata?
+  Escribiría los tests de caracterización para el Backstage Pass con más
+  cuidado en los límites de los umbrales (9 vs 10, 4 vs 5), ya que la
+  sutileza del "decrementa primero, evalúa después" es fácil de pasar por
+  alto la primera vez. También haría el paso B2 (extraer métodos) antes
+  de B1 (constantes), porque con métodos nombrados el código comunica
+  mejor su intención antes de que los strings mágicos sean reemplazados.
+
+¿Qué técnica de este actividad puedes aplicar en tu proyecto actual?
+  La técnica de tests de caracterización es directamente aplicable a
+  cualquier base de código legacy que se necesite modificar. Antes de
+  tocar código heredado sin tests: ejecutarlo, observar su comportamiento,
+  escribir tests que lo fijen. Solo entonces refactorizar. El coste de
+  esos tests es bajo; el coste de no tenerlos ante una regresión puede
+  ser alto. El patrón Strategy + Factory también es aplicable cuando se
+  añaden nuevos tipos de entidades con comportamiento diferente: evita
+  que los condicionales crezcan indefinidamente.
+
+
+================================================================================
+VARIANTES Y NIVELES DE DIFICULTAD
+================================================================================
+
+------------------------------------------------------------------------
+NIVEL JUNIOR — "La Primera Vez con Legacy"
+------------------------------------------------------------------------
+  Alcance:   Módulo 1 y primera parte del Módulo 2 (pasos B1, B2, B3).
+  Meta:      Construir una suite de tests de caracterización sólida
+             y extraer la lógica a métodos con nombres descriptivos.
+  No se requiere: Implementar el patrón Strategy ni el factory.
+  Entregable: Código con métodos extraídos, sin condicionales anidados
+              de más de 2 niveles, todos los tests en verde.
+
+  Hitos concretos:
+    ✓ 12+ tests de caracterización cubriendo todos los tipos de ítem.
+    ✓ update_quality() delega en métodos privados por tipo.
+    ✓ Constantes para strings mágicos (B1).
+    ✓ Condicionales simplificados a 2 niveles máximo (B3).
+    ✓ Commit por cada paso con tests en verde.
+
+  Señal de éxito: cualquier compañero puede leer un método de 5 líneas
+  y entender qué hace, sin necesidad de leer todo el contexto de la clase.
+
+------------------------------------------------------------------------
+NIVEL INTERMEDIO
+------------------------------------------------------------------------
+  Alcance:   Todos los módulos hasta el paso I1.
+  Meta:      Extraer comportamientos a clases separadas sin llegar
+             al polimorfismo completo.
+  Entregable: Clases de comportamiento, tests en verde, "Conjured"
+              implementado (aunque sea con un elif en update_quality).
+
+  Hitos concretos:
+    ✓ Todo lo del nivel Junior.
+    ✓ Clase base ItemUpdater con patrón Template Method (I1).
+    ✓ Subclases por tipo (AgedBrieUpdater, BackstagePassUpdater, etc.).
+    ✓ Conjured añadido con una subclase o con un elif documentado.
+    ✓ Tests Conjured escritos antes de implementar (TDD).
+
+  Señal de éxito: GildedRose ya no contiene strings mágicos ni
+  condicionales anidados; las reglas de cada ítem viven en su propia clase.
+
+------------------------------------------------------------------------
+NIVEL SENIOR — "El Diseño que Escala"
+------------------------------------------------------------------------
+  Alcance:   Todos los módulos incluidos los pasos A1 y A2.
+  Meta:      Diseño con polimorfismo que cumpla el Open/Closed Principle.
+             Añadir "Conjured" debe demostrar que el sistema es extensible
+             sin modificar ninguna clase existente.
+  Entregable: Arquitectura Strategy + Factory, 19+ tests en verde,
+              Conjured implementado por TDD sin modificar clases previas.
+
+  Hitos concretos:
+    ✓ Todo lo del nivel Intermedio.
+    ✓ UpdaterFactory con registry de dict (A1).
+    ✓ update_quality() sin ningún if relacionado con el nombre del ítem.
+    ✓ Conjured añadido únicamente con: 1 clase nueva + 1 línea en registry.
+    ✓ Todos los principios SOLID verificados y documentados.
+
+  Reto adicional — Inyección de dependencias:
+    ¿Puedes hacer que el factory sea configurable desde fuera?
+    Objetivo: que los tests puedan inyectar un updater falso (test double)
+    para verificar el comportamiento de GildedRose sin depender de las
+    implementaciones concretas.
+
+    Ejemplo de diseño posible:
+      class GildedRose:
+          def __init__(self, items, factory=None):
+              self.items = items
+              self._factory = factory or UpdaterFactory()
+
+          def update_quality(self):
+              for item in self.items:
+                  self._factory.for_item(item).update()
+
+    Con esta firma, un test puede pasar un factory que siempre devuelva
+    un FakeUpdater, sin importar el nombre del ítem. El sistema es
+    completamente testeable sin tocar el código de producción.
+
+------------------------------------------------------------------------
+VARIANTE AVANZADA — "Mob Programming con Restricciones"
+------------------------------------------------------------------------
+  Modalidad: Mob completo (5–8 personas, 1 teclado, rotación cada 7 min).
+  Restricción extra: El mob NO puede discutir el diseño antes de codificar.
+                     Solo puede hablar quien NO tiene el teclado
+                     (navigator/observers guían al driver).
+  Objetivo:  Practicar la toma de decisiones colectiva sobre código legacy
+             bajo presión de tiempo.
+
+  Por qué esta restricción es valiosa:
+    En la práctica real, los equipos rara vez tienen tiempo para un diseño
+    exhaustivo antes de empezar. La restricción obliga a que el diseño
+    emerja del código mismo, guiado por los tests. Es una simulación
+    de condiciones reales de equipo bajo presión de entrega.
+
+  Señal de éxito: el equipo llega a tests en verde sin que nadie haya
+  dibujado un diagrama UML previo; el diseño emergió de los micro-pasos.
+
+
+================================================================================
+ADAPTACIONES PARA PAIR Y MOB PROGRAMMING
+================================================================================
+
+------------------------------------------------------------------------
+PAIR PROGRAMMING
+------------------------------------------------------------------------
+  Roles:
+    Driver:    Escribe el código. No toma decisiones de diseño en solitario.
+    Navigator: Lee los requisitos, revisa lo que escribe el driver,
+               anticipa el siguiente paso.
+
+  Rotación: Cada 15–20 minutos o después de cada commit.
+
+  Dinámica recomendada por módulo:
+    Módulo 1 (Análisis):
+      Navigator completa la ficha de análisis mientras el driver explora
+      el código con búsquedas y lecturas. Después intercambian.
+
+    Módulo 2 (Tests de caracterización):
+      Navigator lee el requisito en voz alta.
+      Driver escribe el test.
+      Navigator revisa el assert antes de ejecutar.
+      Driver ejecuta y confirma rojo/verde.
+      Rotar después de cada grupo de tests (Normal, Brie, Sulfuras…).
+
+    Módulo 3 (TDD + Conjured):
+      Navigator escribe el nombre del test en papel o comentario.
+      Driver implementa el test.
+      Rotar antes de escribir la implementación (el que escribió el test
+      NO implementa: así el segundo no tiene sesgos del que falló).
+
+  Consejo: el navigator no debe dictar código línea a línea. Su rol es
+  orientar la dirección ("necesitamos verificar el floor en 0") y dejar
+  que el driver elija la forma concreta de expresarlo.
+
+------------------------------------------------------------------------
+MOB PROGRAMMING
+------------------------------------------------------------------------
+  Estructura de turno:
+    - Timer visible: pomodoro de 7 minutos por turno de driver.
+    - Solo el driver toca el teclado.
+    - El resto actúa como navigators: pueden sugerir pero no tocar.
+    - Proyectar código y tests en pantalla compartida.
+
+  Roles especiales:
+    Product Owner (1 persona):
+      Solo responde preguntas sobre los requisitos, no sobre implementación.
+      Si alguien pregunta "¿cómo lo codificamos?", el PO no responde.
+      Si alguien pregunta "¿qué debe hacer Conjured tras el vencimiento?",
+      el PO responde: "degrada el doble de lo normal".
+
+    Facilitador (rotativo o fijo):
+      Gestiona el timer, facilita la retrospectiva de 5 min entre módulos
+      y asegura que solo el driver escriba.
+
+  Retrospectiva entre módulos (5 min):
+    Al terminar cada módulo, responder en voz alta:
+      - ¿Qué aprendimos en este módulo que no sabíamos al empezar?
+      - ¿Hubo algún desacuerdo? ¿Cómo se resolvió?
+      - ¿Qué haríamos diferente si repitiéramos este módulo ahora?
+
+  Consejo para el driver bajo presión:
+    Si no sabes qué escribir, di en voz alta lo que estás pensando.
+    El mob debe escuchar antes de sugerir. Verbalizar el razonamiento
+    es parte del aprendizaje colectivo, no una señal de debilidad.
+
+
+================================================================================
+RECURSOS ADICIONALES
+================================================================================
+
+------------------------------------------------------------------------
+VÍDEOS
+------------------------------------------------------------------------
+  1. "Why Developers LOVE The Gilded Rose Kata" — Emily Bache
+     Contexto: introducción al kata, por qué es un caso canónico de
+     código legacy y qué habilidades ejercita.
+
+  2. "Gilded Rose Kata, Hands-on (Java)" — Emily Bache
+     Contexto: demostración práctica completa del proceso de refactorización,
+     incluyendo el uso de approval tests y el patrón de micro-pasos.
+
+------------------------------------------------------------------------
+ARTÍCULOS
+------------------------------------------------------------------------
+  1. "Writing Good Tests for the Gilded Rose Kata" — Emily Bache
+     Cómo diseñar una suite de caracterización que cubra todos los casos
+     límite sin caer en over-testing. Muy relevante para el Módulo 2.
+
+  2. "Refactor This: The Gilded Rose Kata" — Bobby Johnson (Wayback Machine)
+     Perspectiva desde el diseño orientado a objetos; contrasta el
+     enfoque de Extract Method vs. Replace Conditional with Polymorphism.
+
+  3. "Why Most Solutions to Gilded Rose Miss The Bigger Picture" (Wayback Machine)
+     Artículo crítico sobre las soluciones que "pasan los tests" pero
+     no mejoran la mantenibilidad real del código. Útil para la reflexión
+     del Paso 3.3.
+
+------------------------------------------------------------------------
+HERRAMIENTAS
+------------------------------------------------------------------------
+  TextTest — Approval Testing Tool
+    Herramienta de approval testing basada en comparación de output de texto.
+    Útil para golden-file testing de sistemas con salida estándar.
+    URL: http://texttest.org
+
+  ApprovalTests (Python/Java/C#)
+    Librería para approval testing: en Python se instala con
+    pip install approvaltests
+    Documentación: https://github.com/approvals/ApprovalTests.Python
+
+------------------------------------------------------------------------
+LIBROS (REFERENCIA FUNDAMENTAL)
+------------------------------------------------------------------------
+  1. "Working Effectively with Legacy Code" — Michael Feathers
+     El texto de referencia para trabajar con código sin tests.
+     Define "legacy code" como "código sin tests" (no código antiguo).
+     Catálogo de técnicas para introducir tests en código que no fue
+     diseñado para ser testeable. Imprescindible.
+
+  2. "Refactoring: Improving the Design of Existing Code" — Martin Fowler
+     Catálogo definitivo de refactorizaciones nombradas con sus mecánicas.
+     Extract Method, Replace Conditional with Polymorphism, Introduce
+     Parameter Object y las demás técnicas usadas en este kata están
+     documentadas aquí con precisión.
+
+  3. "Technical Agile Coaching with the Samman Method" — Emily Bache
+     Marco pedagógico para introducir TDD y refactorización en equipos
+     reales mediante coding dojos, learning hours y ensemble programming.
+     Muy relevante si el objetivo es llevar estas prácticas a un equipo
+     de trabajo real.
+
+
+================================================================================
+COMPARATIVA FINAL: CÓDIGO LEGACY VS. DISEÑO REFACTORIZADO
+================================================================================
+
+  Métrica                         Legacy original    Versión final (Senior)
+  ─────────────────────────────── ────────────────   ──────────────────────
+  Líneas en update_quality()      30+                2
+  Niveles de anidamiento máximo   5                  0 (sin if de nombre)
+  Strings mágicos en producción   8                  0 (constantes)
+  Clases con reglas de negocio    1 (GildedRose)     6 (una por tipo)
+  Pasos para añadir nuevo tipo    Abrir y editar     1 clase + 1 línea
+                                  update_quality()   en el registry
+  Riesgo de regresión al añadir   Alto               Mínimo (OCP cumplido)
+  Tests en verde                  0                  19 (18 unit + 1 approval)
+  Principios SOLID cumplidos      Ninguno            S, O, L, I, D
+
+
+================================================================================
+RESULTADO FINAL — MÓDULO 3 COMPLETO
+================================================================================
+
+  Tests totales                       : 19 (18 unitarios + 1 approval)
+  Todos en verde                      : SÍ
+  Fase roja TDD vivida correctamente  : SÍ (commit "test fail" preservado)
+  Conjured implementado por TDD       : SÍ
+  Clases existentes modificadas       : NINGUNA (solo se añadió ConjuredItemUpdater)
+  Commits semánticos con tests verdes : SÍ
+  update_quality() sin condicionales  : SÍ
+  Principios SOLID documentados       : S, O, L, I, D
+
+================================================================================

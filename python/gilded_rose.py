@@ -85,12 +85,13 @@ class UpdaterFactory:
 
 class GildedRose(object):
 
-    def __init__(self, items):
+    def __init__(self, items, factory=None):
         self.items = items
+        self._factory = factory or UpdaterFactory()
 
     def update_quality(self):
         for item in self.items:
-            UpdaterFactory.for_item(item).update()
+            self._factory.for_item(item).update()
 
 
 # ===========================================================================
