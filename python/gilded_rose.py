@@ -3,6 +3,7 @@
 AGED_BRIE      = "Aged Brie"
 SULFURAS       = "Sulfuras, Hand of Ragnaros"
 BACKSTAGE_PASS = "Backstage passes to a TAFKAL80ETC concert"
+CONJURED       = "Conjured Mana Cake"
 
 
 # ===========================================================================
@@ -52,6 +53,14 @@ class BackstagePassUpdater(ItemUpdater):
 
 
 
+class ConjuredItemUpdater(ItemUpdater):
+    """Ítems Conjured: degradan el doble de rápido que un ítem normal."""
+    def update(self):
+        self.item.sell_in -= 1
+        degradation = 4 if self.item.sell_in < 0 else 2
+        self.item.quality = max(0, self.item.quality - degradation)
+
+
 # ===========================================================================
 # Factory — selecciona el updater correcto según el nombre del ítem
 # ===========================================================================
@@ -61,6 +70,7 @@ class UpdaterFactory:
         AGED_BRIE:      AgedBrieUpdater,
         SULFURAS:       SulfurasUpdater,
         BACKSTAGE_PASS: BackstagePassUpdater,
+        CONJURED:       ConjuredItemUpdater,
     }
 
     @classmethod
